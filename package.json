@@ -1,0 +1,20 @@
+{
+  "name": "kaalgeplukt",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Kaalgeplukt — Nederlandse nettoloon-calculator (2026). Basissalaris, 13e maand, vakantiegeld, pensioen vóór belasting, onbelaste vergoedingen, en de situatie ná de 30%-regeling.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.1.1",
+    "vite": "^8.3.0"
+  }
+}
