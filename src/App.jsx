@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef, useLayoutEffect } from "react";
 
 /**
  * Kaalgeplukt — nettoloon-calculator Nederland
@@ -227,6 +227,7 @@ const styles = `
   align-self:stretch;display:flex;align-items:center;font-variant-numeric:tabular-nums lining-nums;}
 .kg-input{flex:1;border:0;background:transparent;padding:11px 12px;font-size:15px;
   font-weight:600;font-variant-numeric:tabular-nums lining-nums;color:var(--ink);width:100%;outline:none;}
+.kg-input::placeholder{color:var(--faint);font-weight:500;opacity:1;}
 .kg-suffix{padding:0 12px;color:var(--faint);font-size:12.5px;}
 .kg-fieldnote{font-size:11px;color:var(--faint);line-height:1.5;margin:9px 0 0;}
 
@@ -333,8 +334,12 @@ const styles = `
 .kg-detail[open] summary::before{content:"– ";}
 
 .kg-footer{margin:30px auto 0;max-width:1060px;font-size:11.5px;color:var(--faint);line-height:1.6;
-  display:flex;align-items:center;gap:8px;}
-.kg-footer svg{width:14px;height:14px;color:var(--quill);flex:none;}
+  display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;}
+.kg-footer-note{display:flex;align-items:center;gap:8px;}
+.kg-footer-note svg{width:14px;height:14px;color:var(--quill);flex:none;}
+.kg-footer-link{display:flex;align-items:center;gap:6px;color:var(--faint);text-decoration:none;font-weight:500;}
+.kg-footer-link:hover{color:var(--ink-soft);}
+.kg-footer-link svg{width:14px;height:14px;flex:none;}
 `;
 
 // One tidy feather. variant tints + tilts it: kept = upright green, plucked = tilted oxblood, etc.
@@ -408,38 +413,92 @@ function DuckMark({ className }) {
   );
 }
 
+// Only digits and a single comma are meaningful input — no letters, no minus,
+// no second separator, and at most 2 digits after the comma (cents-precision is
+// as fine-grained as anything on this site gets). The dot is reserved for
+// auto-inserted thousands grouping below, so any dot typed or pasted is dropped.
+function sanitizeNumericText(raw) {
+  const out = raw.replace(/\./g, "").replace(/[^0-9,]/g, "");
+  const firstComma = out.indexOf(",");
+  if (firstComma === -1) return out;
+  const intPart = out.slice(0, firstComma);
+  const decPart = out.slice(firstComma + 1).replace(/,/g, "").slice(0, 2);
+  return `${intPart},${decPart}`;
+}
+
+// Dutch numbering: "." every three digits in the integer part, "," before the
+// decimals. Input is a sanitizeNumericText() result (digits + one comma, no dots).
+function formatGrouped(clean) {
+  const commaIdx = clean.indexOf(",");
+  const intPart = commaIdx === -1 ? clean : clean.slice(0, commaIdx);
+  const rest = commaIdx === -1 ? "" : clean.slice(commaIdx);
+  let grouped = "";
+  for (let i = 0; i < intPart.length; i++) {
+    grouped += intPart[i];
+    const posFromRight = intPart.length - i;
+    if (posFromRight > 1 && posFromRight % 3 === 1) grouped += ".";
+  }
+  return grouped + rest;
+}
+
+// A resting value of exactly 0 renders as an empty field with a "0" placeholder
+// instead of a literal "0" — every field defaults to 0, so a hard zero in every
+// box would look like real, deliberate input rather than "nothing filled in yet".
+const toGroupedText = (n) => (Number.isNaN(n) || n === 0 ? "" : formatGrouped(String(n).replace(".", ",")));
+
 function NumberInput({ value, onChange, prefix, suffix, step = 1, min = 0 }) {
-  const [text, setText] = useState(() => (Number.isNaN(value) ? "" : String(value)));
+  const [text, setText] = useState(() => toGroupedText(value));
+  const inputRef = useRef(null);
+  const pendingCaret = useRef(null);
 
   // Resync from outside (e.g. the maand/jaar toggle recomputing this value) without
   // clobbering what the user is mid-typing (e.g. "5" while a stale "0" is still parsed as 0).
   useEffect(() => {
-    const parsed = parseFloat(text);
+    const parsed = parseFloat(sanitizeNumericText(text).replace(",", "."));
     const current = Number.isNaN(parsed) ? 0 : parsed;
     if (current !== value) {
-      setText(Number.isNaN(value) ? "" : String(value));
+      setText(toGroupedText(value));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
+
+  // Typing reformats the whole string (grouping dots shift as digits are added),
+  // so the caret has to be repositioned by hand or it jumps to the end on every key.
+  useLayoutEffect(() => {
+    if (pendingCaret.current != null && inputRef.current) {
+      inputRef.current.setSelectionRange(pendingCaret.current, pendingCaret.current);
+      pendingCaret.current = null;
+    }
+  }, [text]);
 
   return (
     <div className="kg-inputrow">
       {prefix && <span className="kg-prefix">{prefix}</span>}
       <input
+        ref={inputRef}
         className="kg-input"
         type="text"
         inputMode="decimal"
         value={text}
+        placeholder="0"
         onChange={(e) => {
-          // Strip anything that isn't a digit or a decimal separator — number
-          // inputs let letters through (and even display them) in some browsers.
-          let raw = e.target.value.replace(/[^0-9.,]/g, "");
-          const firstSep = raw.search(/[.,]/);
-          if (firstSep !== -1) {
-            raw = raw.slice(0, firstSep + 1) + raw.slice(firstSep + 1).replace(/[.,]/g, "");
+          const el = e.target;
+          const caret = el.selectionStart ?? el.value.length;
+          const significantBeforeCaret = sanitizeNumericText(el.value.slice(0, caret)).length;
+
+          const clean = sanitizeNumericText(el.value);
+          const grouped = formatGrouped(clean);
+
+          let count = 0;
+          let pos = 0;
+          while (pos < grouped.length && count < significantBeforeCaret) {
+            if (grouped[pos] !== ".") count++;
+            pos++;
           }
-          setText(raw);
-          const v = parseFloat(raw.replace(",", "."));
+          pendingCaret.current = pos;
+
+          setText(grouped);
+          const v = parseFloat(clean.replace(",", "."));
           onChange(Number.isNaN(v) ? 0 : Math.max(min, v));
         }}
       />
@@ -597,6 +656,15 @@ export default function App() {
               </div>
 
               <div className="kg-field">
+                <Toggle
+                  on={ruling}
+                  onClick={() => setRuling((v) => !v)}
+                  label="Vergelijk mét 30%-regeling"
+                  sub="Indicatief: 30% van bruto onbelast"
+                />
+              </div>
+
+              <div className="kg-field">
                 <div className="kg-flabel">
                   <span>Bruto {incomePeriod === "month" ? "maandsalaris" : "jaarsalaris"} (basis)</span>
                   <span className="kg-fhint">
@@ -674,15 +742,6 @@ export default function App() {
                     <NumberInput value={franchise} onChange={setFranchise} prefix="€" step={500} />
                   </div>
                 </details>
-              </div>
-
-              <div className="kg-field">
-                <Toggle
-                  on={ruling}
-                  onClick={() => setRuling((v) => !v)}
-                  label="Vergelijk mét 30%-regeling"
-                  sub="Indicatief: 30% van bruto onbelast"
-                />
               </div>
             </div>
 
@@ -881,11 +940,19 @@ export default function App() {
         </div>
 
         <div className="kg-footer">
-          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M19.5 3.6c-5.6-.5-11.4 2.9-13.8 9-.8 2-1.1 4-1.2 6.1l2.6-2.6c1 .3 2 .4 3 .4 5.7 0 9.9-4.6 10.1-10.3.02-.9-.02-1.8-.13-2.6z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-            <path d="M17 6 L6.4 17" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-          </svg>
-          Tarieven en heffingskortingen Nederland · belastingjaar {taxYear}.
+          <div className="kg-footer-note">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M19.5 3.6c-5.6-.5-11.4 2.9-13.8 9-.8 2-1.1 4-1.2 6.1l2.6-2.6c1 .3 2 .4 3 .4 5.7 0 9.9-4.6 10.1-10.3.02-.9-.02-1.8-.13-2.6z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+              <path d="M17 6 L6.4 17" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+            </svg>
+            Tarieven en heffingskortingen Nederland · belastingjaar {taxYear}.
+          </div>
+          <a className="kg-footer-link" href="https://github.com/bothmanity/kaalgeplukt-site" target="_blank" rel="noopener noreferrer">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M12 2C6.48 2 2 6.58 2 12.19c0 4.49 2.87 8.3 6.84 9.65.5.09.68-.22.68-.49 0-.24-.01-1.04-.01-1.89-2.78.61-3.37-1.21-3.37-1.21-.46-1.18-1.11-1.5-1.11-1.5-.9-.63.07-.62.07-.62 1 .07 1.53 1.05 1.53 1.05.89 1.55 2.34 1.1 2.91.84.09-.66.35-1.1.63-1.36-2.22-.26-4.56-1.14-4.56-5.06 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.3.1-2.71 0 0 .84-.28 2.75 1.05a9.32 9.32 0 0 1 5 0c1.91-1.33 2.75-1.05 2.75-1.05.55 1.41.2 2.45.1 2.71.64.72 1.03 1.63 1.03 2.75 0 3.93-2.34 4.79-4.57 5.05.36.32.68.95.68 1.92 0 1.39-.01 2.51-.01 2.85 0 .27.18.59.69.49A10.02 10.02 0 0 0 22 12.19C22 6.58 17.52 2 12 2z" />
+            </svg>
+            GitHub
+          </a>
         </div>
       </div>
     </div>
