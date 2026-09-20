@@ -41,7 +41,7 @@ npm run preview  # serve the production build locally
 ```
 kaalgeplukt/
 ├── index.html                  # entry HTML, favicon + meta, mounts #root
-├── vite.config.js              # Vite + React; see the base note for subpath hosting
+├── vite.config.js              # Vite + React config
 ├── package.json
 ├── public/
 │   └── kaalgeplukt-logo.svg     # duck logo, also the favicon
@@ -71,21 +71,6 @@ Official **2026** values for someone **under AOW age**, **no fiscal partner**,
 To update for a future tax year, edit the `BRACKETS` array and the
 `algemeneHeffingskorting` / `arbeidskorting` functions near the top of
 `src/App.jsx`. They are the single source of truth.
-
-## Deploying
-
-It's a static site — after `npm run build`, `dist/` is all you need.
-
-- **Codeberg Pages:** build, then push the *contents* of `dist/` (with `index.html`
-  at the root) to a `pages` branch. Served at `username.codeberg.page/kaalgeplukt`.
-  If you use that subpath, set `base: "/kaalgeplukt/"` in `vite.config.js`; for a
-  custom domain at the root, leave `base: "/"`.
-- **Cloudflare Pages / Netlify:** build command `npm run build`, output directory
-  `dist`. (Cloudflare doesn't integrate with Codeberg directly — deploy via the
-  Wrangler CLI or CI.)
-
-The app is a single page with no client-side routing, so no SPA-fallback rewrites
-are needed.
 
 ## Disclaimer
 

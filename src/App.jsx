@@ -277,6 +277,33 @@ const styles = `
 }
 @media (prefers-reduced-motion:reduce){.kg-drift{animation:none;}}
 
+/* pluck bar — a duck flying along a progress bar, trailing feathers, the
+   further right it gets the more of your gross the taxman has taken. */
+.kg-pluckbar{margin-top:20px;position:relative;z-index:2;}
+.kg-pluckbar-track{position:relative;height:14px;border-radius:99px;background:rgba(236,237,233,.14);overflow:visible;}
+.kg-pluckbar-fill{height:100%;border-radius:99px;overflow:hidden;background:linear-gradient(90deg,#8a2a18,var(--pluck));
+  transition:width .6s cubic-bezier(.4,0,.2,1);}
+.kg-pluckbar-duck{position:absolute;top:50%;width:32px;height:22px;margin-left:-16px;margin-top:-11px;color:var(--quill);
+  transition:left .6s cubic-bezier(.4,0,.2,1);animation:kg-bob 1.1s ease-in-out infinite;}
+.kg-pluckbar-duckicon{width:100%;height:100%;overflow:visible;}
+.kg-duckfly-wing{transform-origin:7px 11px;animation:kg-flap .45s ease-in-out infinite alternate;}
+.kg-pluckbar-puff{position:absolute;width:9px;height:9px;color:var(--quill);opacity:0;
+  left:5px;top:3px;animation:kg-puff 1.4s ease-out infinite;}
+.kg-pluckbar-puff.p2{animation-delay:.7s;left:1px;top:7px;width:7px;height:7px;}
+.kg-pluckbar-labels{display:flex;justify-content:space-between;margin-top:9px;font-size:11px;
+  color:rgba(236,237,233,.55);position:relative;z-index:2;}
+.kg-pluckbar-pct{font-weight:700;color:var(--quill);}
+@keyframes kg-flap{from{transform:rotate(4deg);}to{transform:rotate(-22deg);}}
+@keyframes kg-bob{0%,100%{transform:translateY(0);}50%{transform:translateY(-4px);}}
+@keyframes kg-puff{
+  0%{opacity:0;transform:translate(0,0) rotate(0deg) scale(.6);}
+  20%{opacity:.9;}
+  100%{opacity:0;transform:translate(-20px,-12px) rotate(-70deg) scale(.4);}
+}
+@media (prefers-reduced-motion:reduce){
+  .kg-pluckbar-duck,.kg-duckfly-wing,.kg-pluckbar-puff{animation:none;}
+}
+
 /* pluck waterfall */
 .kg-wf-row{display:flex;align-items:center;gap:13px;padding:11px 0;border-bottom:1px solid var(--line-soft);}
 .kg-wf-row:last-child{border-bottom:0;}
@@ -409,6 +436,21 @@ function DuckMark({ className }) {
         strokeLinejoin="round"
       />
       <path d="M61.6 9 L57.4 13.6" stroke="var(--quill)" strokeWidth="1.1" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+// A little side-on duck for the pluck bar: an egg-shaped body (the classic
+// rubber-duck simplification), a flapping wing, a tail flick, a beak. Colored
+// via currentColor so it works light-on-dark inside the hero card.
+function DuckFly({ className }) {
+  return (
+    <svg className={className} viewBox="0 0 34 22" fill="none" aria-hidden="true">
+      <path d="M3 12 Q0 10 1 6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      <ellipse cx="14" cy="12" rx="11" ry="7.5" transform="rotate(-8 14 12)" fill="currentColor" fillOpacity="0.22" stroke="currentColor" strokeWidth="1.3" />
+      <path className="kg-duckfly-wing" d="M7 11 Q13 4 20 10" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      <path d="M23 7 L29 8.3 L23.5 10.2 Z" fill="currentColor" />
+      <circle cx="21" cy="6.3" r="1.1" fill="var(--ink)" />
     </svg>
   );
 }
@@ -619,6 +661,7 @@ export default function App() {
   );
 
   const max = r.grossAnnual;
+  const pluckedPct = Math.min(100, Math.max(0, r.pluckedShare * 100));
 
   return (
     <div className="kg-root">
@@ -805,6 +848,27 @@ export default function App() {
                 <div>
                   <div className="kg-hstat-k">Kaalgeplukt</div>
                   <div className="kg-hstat-v">{pct(r.pluckedShare)}</div>
+                </div>
+              </div>
+
+              <div className="kg-pluckbar">
+                <div className="kg-pluckbar-track">
+                  <div className="kg-pluckbar-fill" style={{ width: `${pluckedPct}%` }} />
+                  <div className="kg-pluckbar-duck" style={{ left: `${pluckedPct}%` }}>
+                    <DuckFly className="kg-pluckbar-duckicon" />
+                    <svg className="kg-pluckbar-puff p1" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path d="M19.5 3.6c-5.6-.5-11.4 2.9-13.8 9-.8 2-1.1 4-1.2 6.1l2.6-2.6c1 .3 2 .4 3 .4 5.7 0 9.9-4.6 10.1-10.3.02-.9-.02-1.8-.13-2.6z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+                      <path d="M17 6 L6.4 17" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                    </svg>
+                    <svg className="kg-pluckbar-puff p2" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path d="M19.5 3.6c-5.6-.5-11.4 2.9-13.8 9-.8 2-1.1 4-1.2 6.1l2.6-2.6c1 .3 2 .4 3 .4 5.7 0 9.9-4.6 10.1-10.3.02-.9-.02-1.8-.13-2.6z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+                      <path d="M17 6 L6.4 17" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                    </svg>
+                  </div>
+                </div>
+                <div className="kg-pluckbar-labels">
+                  <span>Overgehouden</span>
+                  <span className="kg-pluckbar-pct">{pct(r.pluckedShare)} kaalgeplukt</span>
                 </div>
               </div>
             </div>
